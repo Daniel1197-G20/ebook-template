@@ -12,7 +12,11 @@
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio"
   },
-  "keywords": ["ebook", "ecommerce", "paystack"],
+  "keywords": [
+    "ebook",
+    "ecommerce",
+    "paystack"
+  ],
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
@@ -23,6 +27,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
+    "firebase-admin": "^14.2.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",

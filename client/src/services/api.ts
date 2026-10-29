@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
+import type { ExternalBook } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -36,6 +37,10 @@ export const authApi = {
     api.post('/auth/login', data),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+  resetPassword: (data: { token: string; password: string }) =>
+    api.post('/auth/reset-password', data),
 };
 
 // Books
@@ -60,6 +65,24 @@ export const adminApi = {
   createAdmin: (data: { name: string; email: string; password: string }) =>
     api.post('/admin/users', data),
   toggleUserRole: (userId: string) => api.patch(`/admin/users/${userId}/role`),
+
+  // External Book API Discovery & Importer
+  searchExternalBooks: (params?: { q?: string; genre?: string; provider?: string; page?: number; limit?: number }) =>
+    api.get('/admin/external-books/search', { params }),
+  getExternalGenres: () => api.get('/admin/external-books/genres'),
+  lookupExternalBook: (query: string) =>
+    api.get('/admin/external-books/lookup', { params: { query } }),
+  importExternalBooks: (data: { books: ExternalBook[]; defaultOverrides?: Record<string, unknown> }) =>
+    api.post('/admin/external-books/import', data),
+
+  // Bulk Manual Add & Management
+  bulkCreateBooks: (books: Record<string, unknown>[]) =>
+    api.post('/admin/books/bulk-create', { books }),
+  bulkUpdateBooks: (data: {
+    bookIds: string[];
+    action: 'publish' | 'unpublish' | 'feature' | 'unfeature' | 'delete' | 'updatePrice' | 'addCategory';
+    updates?: Record<string, unknown>;
+  }) => api.patch('/admin/books/bulk-update', data),
 };
 
 // Categories

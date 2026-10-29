@@ -342,3 +342,29 @@
 .signin-link strong {
   color: var(--color-accent);
 }
+
+.forgot-password-link {
+  align-self: flex-end;
+  font-size: 0.82rem;
+  color: var(--color-accent);
+  text-decoration: none;
+  margin-top: 0.35rem;
+  font-weight: 500;
+  transition: opacity var(--transition-fast);
+}
+
+.forgot-password-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.message.success {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}

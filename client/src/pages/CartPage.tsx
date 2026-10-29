@@ -1,44 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, Trash2, ArrowLeft, ShieldCheck, Sparkles, Tag, BookOpen } from 'lucide-react';
-import { cartApi, paymentsApi } from '../services/api';
+import { paymentsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { Button } from '../components/ui/Button';
-import type { Cart } from '../types';
 import './CartPage.css';
 
 export function CartPage() {
   const { isAuthenticated } = useAuth();
+  const { cart, loading, removeFromCart } = useCart();
   const toast = useToast();
-  const [cart, setCart] = useState<Cart | null>(null);
-  const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setLoading(false);
-      return;
-    }
-    cartApi
-      .get()
-      .then((res) => setCart(res.data.data))
-      .catch(() => setCart(null))
-      .finally(() => setLoading(false));
-  }, [isAuthenticated]);
 
   const formatPrice = (price: number) =>
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(price);
 
   const removeItem = async (bookId: string, title: string) => {
     try {
-      const res = await cartApi.remove(bookId);
-      setCart(res.data.data);
+      await removeFromCart(bookId);
       toast.info('Item Removed', `"${title}" was removed from your cart.`);
-    } catch (err) {
+    } catch {
       toast.error('Error', 'Failed to remove volume from cart.');
     }
   };

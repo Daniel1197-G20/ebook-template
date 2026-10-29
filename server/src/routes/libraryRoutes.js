@@ -28,25 +28,25 @@ router.get('/:bookId/access', asyncHandler(async (req, res) => {
 }));
 
 router.get('/:bookId/download', asyncHandler(async (req, res) => {
-  const { path: filePath, filename } = await libraryService.getEbookStreamPath(
+  const { stream, filename, mimetype } = await libraryService.getEbookStream(
     req.user.id,
     req.params.bookId
   );
 
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.sendFile(path.resolve(filePath));
+  res.setHeader('Content-Type', mimetype);
+  stream.pipe(res);
 }));
 
 router.get('/:bookId/read', asyncHandler(async (req, res) => {
-  const { path: filePath, filename } = await libraryService.getEbookStreamPath(
+  const { stream, filename, mimetype } = await libraryService.getEbookStream(
     req.user.id,
     req.params.bookId
   );
 
   res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-  res.setHeader('Content-Type', 'application/pdf');
-  res.sendFile(path.resolve(filePath));
+  res.setHeader('Content-Type', mimetype);
+  stream.pipe(res);
 }));
 
 module.exports = router;

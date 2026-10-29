@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
-import { booksApi, cartApi } from '../services/api';
+import { booksApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
+import { useNavigate } from 'react-router-dom';
 import { GlassGalleryShowcase } from '../components/gallery/GlassGalleryShowcase';
 import type { Book } from '../types';
 import './BooksPage.css';
 
 export function BooksPage() {
   const { isAuthenticated } = useAuth();
+  const { cartItemIds, addToCart } = useCart();
+  const toast = useToast();
+  const navigate = useNavigate();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cartItemIds, setCartItemIds] = useState<string[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -20,25 +25,22 @@ export function BooksPage() {
       })
       .catch(() => setBooks([]))
       .finally(() => setLoading(false));
-
-    if (isAuthenticated) {
-      cartApi
-        .get()
-        .then((res) => {
-          const items = res.data.data.cart?.items || [];
-          setCartItemIds(items.map((i: { bookId: string }) => i.bookId));
-        })
-        .catch(() => setCartItemIds([]));
-    }
-  }, [isAuthenticated]);
+  }, []);
 
   const handleAddToCart = async (book: Book) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
     if (cartItemIds.includes(book.id)) return;
     try {
-      await cartApi.add(book.id);
-      setCartItemIds((prev) => [...prev, book.id]);
-    } catch (err) {
-      console.error('Failed to add book to cart', err);
+      await addToCart(book.id);
+      toast.success('Added to Cart', `"${book.title}" was added to your shopping cart.`);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'Failed to add book to cart';
+      toast.error('Cart Error', msg);
     }
   };
 

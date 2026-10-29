@@ -5,9 +5,11 @@ import type { User } from '../types';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (name: string, email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
 }
@@ -34,18 +36,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const res = await authApi.login({ email, password });
     const { user, accessToken } = res.data.data;
     localStorage.setItem('accessToken', accessToken);
     setUser(user);
+    return user;
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string): Promise<User> => {
     const res = await authApi.register({ name, email, password });
     const { user, accessToken } = res.data.data;
     localStorage.setItem('accessToken', accessToken);
     setUser(user);
+    return user;
   };
 
   const logout = async () => {
@@ -57,6 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const forgotPassword = async (email: string) => {
+    await authApi.forgotPassword(email);
+  };
+
+  const resetPassword = async (token: string, password: string) => {
+    await authApi.resetPassword({ token, password });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -65,6 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        forgotPassword,
+        resetPassword,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'ADMIN',
       }}

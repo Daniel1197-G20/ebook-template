@@ -50,7 +50,14 @@ export function AdminRoute({ children }: AdminRouteProps) {
         <p style={{ color: 'var(--color-text-secondary)', marginBottom: '2rem', lineHeight: '1.6' }}>
           The path <code style={{ background: 'var(--color-surface-hover)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>{location.pathname}</code> is restricted to platform administrators only. You are signed in as <strong>{user?.email}</strong>.
         </p>
-        <Navigate to="/" />
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <a href="/" style={{ padding: '0.6rem 1.2rem', background: 'var(--color-primary)', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>
+            Return Home
+          </a>
+          <a href="/login" style={{ padding: '0.6rem 1.2rem', background: 'var(--color-surface-hover)', color: 'var(--color-text)', borderRadius: '8px', textDecoration: 'none', fontWeight: 600 }}>
+            Switch Account
+          </a>
+        </div>
       </div>
     );
   }

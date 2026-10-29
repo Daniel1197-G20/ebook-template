@@ -52,6 +52,8 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 
 // Public covers & previews only (ebooks are NEVER public)
 app.use('/uploads/covers', express.static(path.join(__dirname, '../uploads/covers')));

@@ -1,8 +1,18 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react';
-import { X, Upload, Check, FileText, Image as ImageIcon, BookOpen, Loader2 } from 'lucide-react';
+import {
+  X,
+  Upload,
+  Check,
+  FileText,
+  Image as ImageIcon,
+  BookOpen,
+  Loader2,
+  Sparkles,
+  Search,
+} from 'lucide-react';
 import { adminApi, categoriesApi, booksApi } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
-import type { Book, Category } from '../../types';
+import type { Book, Category, ExternalBook } from '../../types';
 import { Button } from '../ui/Button';
 import './AdminModal.css';
 
@@ -11,16 +21,27 @@ interface BookFormModalProps {
   onClose: () => void;
   onSuccess: () => void;
   bookToEdit?: Book | null;
+  initialData?: ExternalBook | null;
 }
 
-export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFormModalProps) {
-  const { success, error } = useToast();
+export function BookFormModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  bookToEdit,
+  initialData,
+}: BookFormModalProps) {
+  const { success, error, info } = useToast();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingPreview, setUploadingPreview] = useState(false);
   const [uploadingEbook, setUploadingEbook] = useState(false);
+
+  // Autofill lookup state
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -41,9 +62,9 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showAddCat, setShowAddCat] = useState(false);
 
+  // Load categories
   useEffect(() => {
     if (isOpen) {
-      // Load categories
       categoriesApi
         .list()
         .then((res) => {
@@ -67,6 +88,22 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
         setPublished(bookToEdit.published ?? true);
         setFeatured(bookToEdit.featured ?? false);
         setSelectedCategories(bookToEdit.categories ? bookToEdit.categories.map((c) => c.id) : []);
+      } else if (initialData) {
+        setTitle(initialData.title || '');
+        setAuthor(initialData.author || '');
+        setPrice(initialData.suggestedPrice ? initialData.suggestedPrice.toString() : '4500');
+        setCurrency(initialData.currency || 'NGN');
+        setFormat(initialData.format || 'PDF');
+        setPageCount(initialData.pageCount ? initialData.pageCount.toString() : '');
+        setLanguage(initialData.language || 'English');
+        setShortDescription(initialData.shortDescription || '');
+        setDescription(initialData.description || '');
+        setCoverImage(initialData.coverImage || '');
+        setPreviewFile(initialData.previewFile || '');
+        setEbookFile(initialData.ebookFile || '');
+        setPublished(true);
+        setFeatured(false);
+        setSelectedCategories([]);
       } else {
         // Reset
         setTitle('');
@@ -86,9 +123,46 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
         setSelectedCategories([]);
       }
     }
-  }, [isOpen, bookToEdit]);
+  }, [isOpen, bookToEdit, initialData]);
 
   if (!isOpen) return null;
+
+  // Handle live autofill from external API
+  const handleAutofillLookup = async () => {
+    if (!lookupQuery.trim()) {
+      error('Please enter a book title or ISBN to lookup');
+      return;
+    }
+
+    setLookingUp(true);
+    try {
+      const res = await adminApi.lookupExternalBook(lookupQuery.trim());
+      const extBook: ExternalBook = res.data.data.book;
+
+      if (extBook) {
+        setTitle(extBook.title || '');
+        setAuthor(extBook.author || '');
+        if (extBook.suggestedPrice && !price) {
+          setPrice(extBook.suggestedPrice.toString());
+        }
+        if (extBook.pageCount) setPageCount(extBook.pageCount.toString());
+        if (extBook.language) setLanguage(extBook.language);
+        if (extBook.shortDescription) setShortDescription(extBook.shortDescription);
+        if (extBook.description) setDescription(extBook.description);
+        if (extBook.coverImage) setCoverImage(extBook.coverImage);
+        if (extBook.format) setFormat(extBook.format);
+
+        success(`Found '${extBook.title}' from ${extBook.source}! Fields populated.`);
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'No matching book found on API. Please enter details manually.';
+      info(msg);
+    } finally {
+      setLookingUp(false);
+    }
+  };
 
   const handleFileUpload = async (
     e: ChangeEvent<HTMLInputElement>,
@@ -110,7 +184,9 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
       setUrlState(fileUrl);
       success(`${type.toUpperCase()} file uploaded successfully`);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'File upload failed';
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'File upload failed';
       error(msg);
     } finally {
       setLoadingState(false);
@@ -136,7 +212,9 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
       setShowAddCat(false);
       success(`Category '${newCat.name}' created!`);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to create category';
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'Failed to create category';
       error(msg);
     }
   };
@@ -178,7 +256,9 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to save book';
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'Failed to save book';
       error(msg);
     } finally {
       setLoading(false);
@@ -191,7 +271,7 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
         <div className="admin-modal-header">
           <div className="admin-modal-title">
             <BookOpen size={22} className="admin-modal-icon" />
-            <h3>{bookToEdit ? 'Edit Book Details' : 'Upload & Add New Book'}</h3>
+            <h3>{bookToEdit ? 'Edit Book Details' : 'Add / Edit Book Details'}</h3>
           </div>
           <button className="admin-modal-close" onClick={onClose} aria-label="Close modal">
             <X size={20} />
@@ -199,7 +279,49 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
         </div>
 
         <form onSubmit={handleSubmit} className="admin-modal-body">
-          {/* Top Basic Info */}
+          {/* Top API Auto-Fetch Helper (For new books) */}
+          {!bookToEdit && (
+            <div className="autofill-banner">
+              <div className="autofill-header">
+                <span className="autofill-title">
+                  <Sparkles size={16} /> Auto-Fetch Metadata & Cover from API
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                  OpenLibrary / Google Books
+                </span>
+              </div>
+              <div className="autofill-input-row">
+                <input
+                  type="text"
+                  placeholder="Enter Title or ISBN (e.g. Clean Code, Atomic Habits, 9780132350884)..."
+                  value={lookupQuery}
+                  onChange={(e) => setLookupQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAutofillLookup();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleAutofillLookup}
+                  disabled={lookingUp}
+                >
+                  {lookingUp ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Search size={14} />
+                  )}
+                  {lookingUp ? 'Searching...' : 'Auto-fill Form'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Basic Info */}
           <div className="form-grid-2">
             <div className="form-group">
               <label htmlFor="book-title">
@@ -344,7 +466,11 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
                     onChange={(e) => handleFileUpload(e, 'cover', setUploadingCover, setCoverImage)}
                   />
                   <Button type="button" variant="secondary" size="sm" disabled={uploadingCover}>
-                    {uploadingCover ? <Loader2 className="animate-spin" size={16} /> : <ImageIcon size={16} />}
+                    {uploadingCover ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <ImageIcon size={16} />
+                    )}
                     {uploadingCover ? 'Uploading...' : 'Browse Cover'}
                   </Button>
                 </div>
@@ -357,7 +483,11 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
               </div>
               {coverImage && (
                 <div className="image-preview">
-                  <img src={coverImage} alt="Cover preview" onError={(e) => ((e.target as HTMLElement).style.display = 'none')} />
+                  <img
+                    src={coverImage}
+                    alt="Cover preview"
+                    onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
+                  />
                   <span className="preview-label">Cover Preview</span>
                 </div>
               )}
@@ -377,7 +507,11 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
                     onChange={(e) => handleFileUpload(e, 'preview', setUploadingPreview, setPreviewFile)}
                   />
                   <Button type="button" variant="secondary" size="sm" disabled={uploadingPreview}>
-                    {uploadingPreview ? <Loader2 className="animate-spin" size={16} /> : <FileText size={16} />}
+                    {uploadingPreview ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <FileText size={16} />
+                    )}
                     {uploadingPreview ? 'Uploading...' : 'Browse Preview PDF'}
                   </Button>
                 </div>
@@ -404,7 +538,11 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
                     onChange={(e) => handleFileUpload(e, 'ebook', setUploadingEbook, setEbookFile)}
                   />
                   <Button type="button" variant="secondary" size="sm" disabled={uploadingEbook}>
-                    {uploadingEbook ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+                    {uploadingEbook ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      <Upload size={16} />
+                    )}
                     {uploadingEbook ? 'Uploading...' : 'Browse Full Ebook'}
                   </Button>
                 </div>
@@ -437,7 +575,11 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
                   <button type="button" onClick={handleCreateCategory} className="save-cat-btn">
                     Save
                   </button>
-                  <button type="button" onClick={() => setShowAddCat(false)} className="cancel-cat-btn">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCat(false)}
+                    className="cancel-cat-btn"
+                  >
                     Cancel
                   </button>
                 </div>
@@ -501,7 +643,7 @@ export function BookFormModal({ isOpen, onClose, onSuccess, bookToEdit }: BookFo
               ) : bookToEdit ? (
                 'Save Changes'
               ) : (
-                'Upload & Create Book'
+                'Save & Publish Book'
               )}
             </Button>
           </div>

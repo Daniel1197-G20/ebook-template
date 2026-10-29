@@ -11,6 +11,58 @@ const slugify = (text) =>
     .replace(/[^\w\-]+/g, '')
     .replace(/\-\-+/g, '-');
 
+/**
+ * Generate a unique slug by appending incremental integers or random bytes if collided
+ */
+const generateUniqueSlug = async (text, currentBookId = null) => {
+  const baseSlug = slugify(text) || 'book';
+  let candidate = baseSlug;
+  let counter = 1;
+
+  while (true) {
+    const existing = await prisma.book.findUnique({ where: { slug: candidate } });
+    if (!existing || (currentBookId && existing.id === currentBookId)) {
+      return candidate;
+    }
+    candidate = `${baseSlug}-${counter}`;
+    counter++;
+    if (counter > 50) {
+      candidate = `${baseSlug}-${Date.now().toString(36)}`;
+      return candidate;
+    }
+  }
+};
+
+/**
+ * Helper to resolve category IDs from an array of IDs and/or category name strings
+ */
+const resolveCategoryIds = async (categoryIds = [], categoryNames = []) => {
+  const resolvedIds = new Set(Array.isArray(categoryIds) ? categoryIds.filter(Boolean) : []);
+
+  if (Array.isArray(categoryNames) && categoryNames.length > 0) {
+    for (const rawName of categoryNames) {
+      const name = typeof rawName === 'string' ? rawName.trim() : '';
+      if (!name) continue;
+
+      const slug = slugify(name);
+      let category = await prisma.category.findUnique({ where: { slug } });
+      if (!category) {
+        // Create category if it doesn't exist
+        category = await prisma.category.create({
+          data: {
+            name,
+            slug,
+            description: `Books in ${name}`,
+          },
+        });
+      }
+      resolvedIds.add(category.id);
+    }
+  }
+
+  return Array.from(resolvedIds);
+};
+
 const getBooks = async (query = {}) => {
   const {
     search,
@@ -34,9 +86,9 @@ const getBooks = async (query = {}) => {
 
   if (search) {
     where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { author: { contains: search, mode: 'insensitive' } },
-      { description: { contains: search, mode: 'insensitive' } },
+      { title: { contains: search } },
+      { author: { contains: search } },
+      { description: { contains: search } },
     ];
   }
 
@@ -187,37 +239,35 @@ const getBookBySlug = async (slug, userId = null) => {
 };
 
 const createBook = async (data) => {
-  const { categoryIds, ...bookData } = data;
-  const slug = bookData.slug ? slugify(bookData.slug) : slugify(bookData.title);
-  
-  const existing = await prisma.book.findUnique({ where: { slug } });
-  if (existing) throw new AppError('Slug or title already exists', 409, 'SLUG_EXISTS');
+  const { categoryIds, categoryNames, ...bookData } = data;
+  const slug = await generateUniqueSlug(bookData.slug || bookData.title);
 
   const book = await prisma.book.create({
     data: {
-      title: bookData.title,
+      title: bookData.title.trim(),
       slug,
-      author: bookData.author,
-      description: bookData.description,
-      shortDescription: bookData.shortDescription || null,
-      coverImage: bookData.coverImage || null,
-      previewFile: bookData.previewFile || null,
-      ebookFile: bookData.ebookFile || null,
+      author: bookData.author.trim(),
+      description: bookData.description.trim(),
+      shortDescription: bookData.shortDescription ? bookData.shortDescription.trim() : null,
+      coverImage: bookData.coverImage ? bookData.coverImage.trim() : null,
+      previewFile: bookData.previewFile ? bookData.previewFile.trim() : null,
+      ebookFile: bookData.ebookFile ? bookData.ebookFile.trim() : null,
       price: new Prisma.Decimal(bookData.price || 0),
       currency: bookData.currency || 'NGN',
-      isbn: bookData.isbn || null,
+      isbn: bookData.isbn ? bookData.isbn.trim() : null,
       publicationDate: bookData.publicationDate ? new Date(bookData.publicationDate) : null,
       pageCount: bookData.pageCount ? parseInt(bookData.pageCount, 10) : null,
       language: bookData.language || 'English',
       format: bookData.format || 'PDF',
       featured: Boolean(bookData.featured),
-      published: Boolean(bookData.published),
+      published: bookData.published !== undefined ? Boolean(bookData.published) : true,
     },
   });
 
-  if (categoryIds && Array.isArray(categoryIds) && categoryIds.length > 0) {
+  const resolvedCategoryIds = await resolveCategoryIds(categoryIds, categoryNames);
+  if (resolvedCategoryIds.length > 0) {
     await prisma.bookCategory.createMany({
-      data: categoryIds.map((catId) => ({ bookId: book.id, categoryId: catId })),
+      data: resolvedCategoryIds.map((catId) => ({ bookId: book.id, categoryId: catId })),
     });
   }
 
@@ -228,28 +278,35 @@ const updateBook = async (id, data) => {
   const book = await prisma.book.findUnique({ where: { id } });
   if (!book) throw new AppError('Book not found', 404, 'BOOK_NOT_FOUND');
 
-  const { categoryIds, ...updateData } = data;
-  const newSlug = updateData.slug ? slugify(updateData.slug) : updateData.title ? slugify(updateData.title) : undefined;
+  const { categoryIds, categoryNames, ...updateData } = data;
+  let newSlug = undefined;
 
-  if (newSlug && newSlug !== book.slug) {
-    const existing = await prisma.book.findUnique({ where: { slug: newSlug } });
-    if (existing) throw new AppError('Slug already in use by another book', 409, 'SLUG_EXISTS');
+  if (updateData.slug || (updateData.title && updateData.title !== book.title)) {
+    newSlug = await generateUniqueSlug(updateData.slug || updateData.title, id);
   }
 
   const updated = await prisma.book.update({
     where: { id },
     data: {
-      ...(updateData.title && { title: updateData.title }),
+      ...(updateData.title && { title: updateData.title.trim() }),
       ...(newSlug && { slug: newSlug }),
-      ...(updateData.author && { author: updateData.author }),
-      ...(updateData.description && { description: updateData.description }),
-      ...(updateData.shortDescription !== undefined && { shortDescription: updateData.shortDescription }),
-      ...(updateData.coverImage !== undefined && { coverImage: updateData.coverImage }),
-      ...(updateData.previewFile !== undefined && { previewFile: updateData.previewFile }),
-      ...(updateData.ebookFile !== undefined && { ebookFile: updateData.ebookFile }),
+      ...(updateData.author && { author: updateData.author.trim() }),
+      ...(updateData.description && { description: updateData.description.trim() }),
+      ...(updateData.shortDescription !== undefined && {
+        shortDescription: updateData.shortDescription ? updateData.shortDescription.trim() : null,
+      }),
+      ...(updateData.coverImage !== undefined && {
+        coverImage: updateData.coverImage ? updateData.coverImage.trim() : null,
+      }),
+      ...(updateData.previewFile !== undefined && {
+        previewFile: updateData.previewFile ? updateData.previewFile.trim() : null,
+      }),
+      ...(updateData.ebookFile !== undefined && {
+        ebookFile: updateData.ebookFile ? updateData.ebookFile.trim() : null,
+      }),
       ...(updateData.price !== undefined && { price: new Prisma.Decimal(updateData.price) }),
       ...(updateData.currency && { currency: updateData.currency }),
-      ...(updateData.isbn !== undefined && { isbn: updateData.isbn }),
+      ...(updateData.isbn !== undefined && { isbn: updateData.isbn ? updateData.isbn.trim() : null }),
       ...(updateData.publicationDate !== undefined && {
         publicationDate: updateData.publicationDate ? new Date(updateData.publicationDate) : null,
       }),
@@ -263,11 +320,12 @@ const updateBook = async (id, data) => {
     },
   });
 
-  if (categoryIds && Array.isArray(categoryIds)) {
+  if (categoryIds !== undefined || categoryNames !== undefined) {
+    const resolvedCategoryIds = await resolveCategoryIds(categoryIds || [], categoryNames || []);
     await prisma.bookCategory.deleteMany({ where: { bookId: id } });
-    if (categoryIds.length > 0) {
+    if (resolvedCategoryIds.length > 0) {
       await prisma.bookCategory.createMany({
-        data: categoryIds.map((catId) => ({ bookId: id, categoryId: catId })),
+        data: resolvedCategoryIds.map((catId) => ({ bookId: id, categoryId: catId })),
       });
     }
   }
@@ -282,11 +340,126 @@ const deleteBook = async (id) => {
   return true;
 };
 
+/**
+ * Bulk create a list of books entered manually or from CSV/JSON
+ */
+const bulkCreateBooks = async (booksList = []) => {
+  if (!Array.isArray(booksList) || booksList.length === 0) {
+    throw new AppError('Please provide a valid list of books to create', 400);
+  }
+
+  const created = [];
+  const errors = [];
+
+  for (const item of booksList) {
+    try {
+      if (!item.title || !item.author) {
+        throw new Error('Title and Author are required');
+      }
+
+      const book = await createBook(item);
+      created.push(book);
+    } catch (err) {
+      errors.push({
+        title: item.title || 'Untitled',
+        error: err.message,
+      });
+    }
+  }
+
+  return {
+    createdCount: created.length,
+    created,
+    errorsCount: errors.length,
+    errors,
+  };
+};
+
+/**
+ * Bulk update multiple books at once (status, price, featured, delete)
+ */
+const bulkUpdateBooks = async ({ bookIds = [], action, updates = {} }) => {
+  if (!Array.isArray(bookIds) || bookIds.length === 0) {
+    throw new AppError('No book IDs specified for bulk operation', 400);
+  }
+
+  if (action === 'delete') {
+    const res = await prisma.book.deleteMany({
+      where: { id: { in: bookIds } },
+    });
+    return { count: res.count, message: `${res.count} books deleted successfully` };
+  }
+
+  if (action === 'publish') {
+    const res = await prisma.book.updateMany({
+      where: { id: { in: bookIds } },
+      data: { published: true },
+    });
+    return { count: res.count, message: `${res.count} books published` };
+  }
+
+  if (action === 'unpublish') {
+    const res = await prisma.book.updateMany({
+      where: { id: { in: bookIds } },
+      data: { published: false },
+    });
+    return { count: res.count, message: `${res.count} books moved to draft` };
+  }
+
+  if (action === 'feature') {
+    const res = await prisma.book.updateMany({
+      where: { id: { in: bookIds } },
+      data: { featured: true },
+    });
+    return { count: res.count, message: `${res.count} books marked as featured` };
+  }
+
+  if (action === 'unfeature') {
+    const res = await prisma.book.updateMany({
+      where: { id: { in: bookIds } },
+      data: { featured: false },
+    });
+    return { count: res.count, message: `${res.count} books removed from featured` };
+  }
+
+  if (action === 'updatePrice' && updates.price !== undefined) {
+    const res = await prisma.book.updateMany({
+      where: { id: { in: bookIds } },
+      data: {
+        price: new Prisma.Decimal(updates.price),
+        ...(updates.currency && { currency: updates.currency }),
+      },
+    });
+    return { count: res.count, message: `${res.count} books updated with new price` };
+  }
+
+  if (action === 'addCategory' && updates.categoryId) {
+    let addedCount = 0;
+    for (const id of bookIds) {
+      try {
+        await prisma.bookCategory.upsert({
+          where: { bookId_categoryId: { bookId: id, categoryId: updates.categoryId } },
+          create: { bookId: id, categoryId: updates.categoryId },
+          update: {},
+        });
+        addedCount++;
+      } catch (_) {}
+    }
+    return { count: addedCount, message: `Category assigned to ${addedCount} books` };
+  }
+
+  throw new AppError('Invalid bulk action specified', 400);
+};
+
 module.exports = {
   getBooks,
   getBookBySlug,
   createBook,
   updateBook,
   deleteBook,
+  bulkCreateBooks,
+  bulkUpdateBooks,
   slugify,
+  generateUniqueSlug,
+  resolveCategoryIds,
 };

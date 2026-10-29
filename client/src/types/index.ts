@@ -25,6 +25,7 @@ export interface Book {
   shortDescription?: string | null;
   coverImage?: string | null;
   previewFile?: string | null;
+  ebookFile?: string | null;
   price: number;
   currency: string;
   isbn?: string | null;
@@ -40,6 +41,34 @@ export interface Book {
   purchaseCount?: number;
   owned?: boolean;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ExternalBook {
+  externalId: string;
+  source: string;
+  title: string;
+  subtitle?: string | null;
+  author: string;
+  description: string;
+  shortDescription?: string | null;
+  coverImage?: string | null;
+  previewFile?: string | null;
+  ebookFile?: string | null;
+  pageCount?: number | null;
+  language?: string;
+  publicationDate?: string | null;
+  categories?: string[];
+  isbn?: string | null;
+  suggestedPrice?: number;
+  currency?: string;
+  format?: string;
+}
+
+export interface ExternalGenre {
+  id: string;
+  name: string;
+  query: string;
 }
 
 export interface CartItem {

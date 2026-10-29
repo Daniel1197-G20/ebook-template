@@ -19,6 +19,7 @@ import {
   Layers,
 } from 'lucide-react';
 import type { Book, LibraryItem } from '../../types';
+import { libraryApi } from '../../services/api';
 import { GlassBookModal } from './GlassBookModal';
 import './GlassGalleryShowcase.css';
 
@@ -285,7 +286,7 @@ export function GlassGalleryShowcase({
                                 <BookOpen size={15} /> Read
                               </Link>
                               <a
-                                href={`/api/library/download/${book.id}`}
+                                href={libraryApi.downloadUrl(book.id)}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="glass-action-btn secondary"
@@ -428,7 +429,7 @@ export function GlassGalleryShowcase({
                           <BookOpen size={18} /> Read Now
                         </Link>
                         <a
-                          href={`/api/library/download/${currentCarouselItem.book.id}`}
+                          href={libraryApi.downloadUrl(currentCarouselItem.book.id)}
                           target="_blank"
                           rel="noreferrer"
                           className="glass-action-btn secondary lg"

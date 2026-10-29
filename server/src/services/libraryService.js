@@ -86,16 +86,41 @@ startxref
   fs.writeFileSync(targetPath, samplePdfContent);
 };
 
-const getEbookStreamPath = async (userId, bookId) => {
+const getMimeType = (filename = '', format = '') => {
+  const ext = path.extname(filename).toLowerCase();
+  const fmt = (format || '').toUpperCase();
+
+  if (ext === '.epub' || fmt === 'EPUB') {
+    return 'application/epub+zip';
+  }
+  if (ext === '.pdf' || fmt === 'PDF') {
+    return 'application/pdf';
+  }
+  return 'application/octet-stream';
+};
+
+const getEbookStream = async (userId, bookId) => {
   const purchase = await checkAccess(userId, bookId);
   let relativePath = purchase.book.ebookFile;
-  let fullPath;
+  const format = purchase.book.format || 'PDF';
+  const ext = format.toLowerCase() === 'epub' ? 'epub' : 'pdf';
+  const filename = `${purchase.book.slug}.${ext}`;
+  const mimetype = getMimeType(filename, format);
+
+  let fullPath = null;
 
   if (relativePath) {
-    fullPath = path.join(process.cwd(), relativePath);
+    const candidatePath = path.isAbsolute(relativePath)
+      ? relativePath
+      : path.join(process.cwd(), relativePath.startsWith('/') ? relativePath.slice(1) : relativePath);
+
+    if (fs.existsSync(candidatePath)) {
+      fullPath = candidatePath;
+    }
   }
 
-  if (!relativePath || !fs.existsSync(fullPath)) {
+  // Fallback to sample PDF if file is missing
+  if (!fullPath) {
     fullPath = path.join(process.cwd(), 'uploads/ebooks/sample.pdf');
     if (!fs.existsSync(fullPath)) {
       createSamplePdf(fullPath);
@@ -103,8 +128,10 @@ const getEbookStreamPath = async (userId, bookId) => {
   }
 
   return {
-    path: fullPath,
-    filename: `${purchase.book.slug}.${purchase.book.format?.toLowerCase() || 'pdf'}`,
+    stream: fs.createReadStream(fullPath),
+    filePath: fullPath,
+    filename,
+    mimetype,
     book: purchase.book,
   };
 };
@@ -112,5 +139,6 @@ const getEbookStreamPath = async (userId, bookId) => {
 module.exports = {
   getLibrary,
   checkAccess,
-  getEbookStreamPath,
+  getEbookStream,
+  getMimeType,
 };

@@ -13,8 +13,9 @@ import {
   Tag,
   Sparkles,
 } from 'lucide-react';
-import { booksApi, cartApi, paymentsApi } from '../services/api';
+import { booksApi, paymentsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { Button } from '../components/ui/Button';
 import type { Book } from '../types';
@@ -23,6 +24,7 @@ import './BookDetailPage.css';
 export function BookDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
   const navigate = useNavigate();
   const toast = useToast();
 
@@ -62,10 +64,13 @@ export function BookDetailPage() {
     if (!book) return;
     setActionLoading(true);
     try {
-      await cartApi.add(book.id);
+      await addToCart(book.id);
       toast.success('Added to Cart', `"${book.title}" has been added to your shopping cart.`);
-    } catch (err: any) {
-      toast.error('Cart Error', err.response?.data?.message || 'Could not add volume to cart.');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+        'Could not add volume to cart.';
+      toast.error('Cart Error', msg);
     } finally {
       setActionLoading(false);
     }

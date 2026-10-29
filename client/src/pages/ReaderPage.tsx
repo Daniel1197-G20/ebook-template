@@ -21,6 +21,7 @@ export function ReaderPage() {
   const navigate = useNavigate();
 
   const [book, setBook] = useState<Book | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [readingTheme, setReadingTheme] = useState<'light' | 'dark' | 'sepia'>('sepia');
   const [fontSize, setFontSize] = useState<number>(18);
@@ -37,21 +38,30 @@ export function ReaderPage() {
 
     if (!bookId) return;
     setLoading(true);
+    setAccessDenied(false);
 
-    booksApi
-      .list({ limit: 50 })
-      .then((res) => {
-        const found = (res.data.data.books || []).find(
-          (b: Book) => b.id === bookId || b.slug === bookId
-        );
-        if (found) {
-          setBook(found);
-          setTotalPages(found.pageCount || 24);
+    // Verify server-side entitlement
+    libraryApi
+      .checkAccess(bookId)
+      .then((accessRes) => {
+        const accessData = accessRes.data.data;
+        const targetSlug = accessData.book.slug || bookId;
+
+        // Fetch full book metadata
+        return booksApi.getBySlug(targetSlug).then((bookRes) => {
+          const fullBook = bookRes.data.data.book;
+          setBook(fullBook);
+          setTotalPages(fullBook.pageCount || 24);
+        });
+      })
+      .catch((err) => {
+        const status = err.response?.status;
+        if (status === 403) {
+          setAccessDenied(true);
         } else {
           setBook(null);
         }
       })
-      .catch(() => setBook(null))
       .finally(() => setLoading(false));
   }, [bookId, isAuthenticated, navigate]);
 
@@ -71,7 +81,24 @@ export function ReaderPage() {
     return (
       <div className="glass-reader-loading">
         <div className="glass-spinner" />
-        <p>Preparing digital reading canvas...</p>
+        <p>Verifying library entitlement & loading reader...</p>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="glass-reader-empty">
+        <h2>Library Access Required</h2>
+        <p>You do not currently own this volume. Acquire the book to unlock instant digital reading and downloads.</p>
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+          <Link to="/books" className="reader-btn">
+            Browse Store
+          </Link>
+          <Link to="/dashboard/library" className="reader-btn" style={{ background: 'var(--color-surface-hover)', color: 'var(--color-text)' }}>
+            My Library
+          </Link>
+        </div>
       </div>
     );
   }

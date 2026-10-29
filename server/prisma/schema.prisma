@@ -8,19 +8,22 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         String   @default("CUSTOMER")
-  profileImage String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  name                  String
+  email                 String    @unique
+  passwordHash          String
+  role                  String    @default("CUSTOMER")
+  profileImage          String?
+  passwordResetToken    String?
+  passwordResetExpires  DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  orders    Order[]
-  purchases Purchase[]
-  reviews   Review[]
-  cartItems CartItem[]
+  orders          Order[]
+  purchases       Purchase[]
+  reviews         Review[]
+  cartItems       CartItem[]
+  readingProgress ReadingProgress[]
 
   @@map("users")
 }
@@ -60,12 +63,13 @@ model Book {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  categories BookCategory[]
-  tags       BookTag[]
-  reviews    Review[]
-  orderItems OrderItem[]
-  purchases  Purchase[]
-  cartItems  CartItem[]
+  categories      BookCategory[]
+  tags            BookTag[]
+  reviews         Review[]
+  orderItems      OrderItem[]
+  purchases       Purchase[]
+  cartItems       CartItem[]
+  readingProgress ReadingProgress[]
 
   @@index([slug])
   @@index([published, featured])

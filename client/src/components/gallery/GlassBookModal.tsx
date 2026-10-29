@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { Book } from '../../types';
+import { libraryApi } from '../../services/api';
 import './GlassBookModal.css';
 
 interface GlassBookModalProps {
@@ -201,7 +202,7 @@ export function GlassBookModal({
                         Read eBook
                       </Link>
                       <a
-                        href={`/api/library/download/${book.id}`}
+                        href={libraryApi.downloadUrl(book.id)}
                         target="_blank"
                         rel="noreferrer"
                         className="glass-btn secondary-glass-btn"

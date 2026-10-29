@@ -23,6 +23,21 @@ build/
 server/prisma/dev.db
 server/prisma/*.db
 
+# Uploads & User Generated Content
+server/uploads/covers/*
+server/uploads/ebooks/*
+server/uploads/previews/*
+!server/uploads/covers/.gitkeep
+!server/uploads/ebooks/.gitkeep
+!server/uploads/previews/.gitkeep
+
+# Credentials & Service Accounts
+*.pem
+*.key
+*serviceAccount*.json
+*firebase-adminsdk*.json
+.gemini/
+
 # Logs
 logs
 *.log

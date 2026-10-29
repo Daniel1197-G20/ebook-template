@@ -1,30 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Menu, X, ShoppingCart, User, BookOpen, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { cartApi } from '../../services/api';
+import { useCart } from '../../context/CartContext';
 import { Button } from '../ui/Button';
 import './Navbar.css';
 
 export function Navbar() {
   const { user, isAuthenticated, logout, isAdmin } = useAuth();
+  const { cartCount } = useCart();
   const [open, setOpen] = useState(false);
-  const [cartCount, setCartCount] = useState<number>(0);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      cartApi
-        .get()
-        .then((res) => {
-          const items = res.data.data.cart?.items || [];
-          setCartCount(items.length);
-        })
-        .catch(() => setCartCount(0));
-    } else {
-      setCartCount(0);
-    }
-  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     await logout();

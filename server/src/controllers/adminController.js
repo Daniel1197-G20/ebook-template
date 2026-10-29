@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { success } = require('../utils/response');
 const AppError = require('../utils/AppError');
 const bookService = require('../services/bookService');
+const storageService = require('../services/storageService');
 
 exports.getStats = asyncHandler(async (req, res) => {
   const [totalBooks, publishedBooks, draftBooks, totalUsers, totalOrders, salesAgg] = await Promise.all([
@@ -11,9 +12,21 @@ exports.getStats = asyncHandler(async (req, res) => {
     prisma.book.count({ where: { published: true } }),
     prisma.book.count({ where: { published: false } }),
     prisma.user.count({ where: { role: 'CUSTOMER' } }),
-    prisma.order.count({ where: { paymentStatus: 'SUCCESSFUL' } }),
+    prisma.order.count({
+      where: {
+        OR: [
+          { paymentStatus: { in: ['SUCCESS', 'SUCCESSFUL'] } },
+          { status: 'PAID' },
+        ],
+      },
+    }),
     prisma.order.aggregate({
-      where: { paymentStatus: 'SUCCESSFUL' },
+      where: {
+        OR: [
+          { paymentStatus: { in: ['SUCCESS', 'SUCCESSFUL'] } },
+          { status: 'PAID' },
+        ],
+      },
       _sum: { total: true },
     }),
   ]);
@@ -53,19 +66,33 @@ exports.uploadFile = asyncHandler(async (req, res) => {
 
   const uploadType = req.body.type || req.file.fieldname || 'cover';
   let folder = 'covers';
-  if (uploadType === 'preview') folder = 'previews';
-  if (uploadType === 'ebook') folder = 'ebooks';
+  let isPublic = true;
+  if (uploadType === 'preview') {
+    folder = 'previews';
+    isPublic = true;
+  } else if (uploadType === 'ebook') {
+    folder = 'ebooks';
+    isPublic = false;
+  }
 
-  const fileUrl = `/uploads/${folder}/${req.file.filename}`;
+  const uploadResult = await storageService.uploadFile({
+    buffer: req.file.buffer,
+    originalname: req.file.originalname,
+    mimetype: req.file.mimetype,
+    folder,
+    isPublic,
+  });
 
   success(
     res,
     {
-      url: fileUrl,
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
+      url: uploadResult.url,
+      storagePath: uploadResult.storagePath,
+      filename: uploadResult.filename,
+      originalName: uploadResult.originalName,
+      mimetype: uploadResult.mimetype,
+      size: uploadResult.size,
+      provider: uploadResult.provider,
     },
     'File uploaded successfully'
   );
